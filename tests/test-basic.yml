@@ -1,0 +1,41 @@
+name: Test basic usage
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Ensure python is on PATH
+        run: |
+          if ! command -v python >/dev/null 2>&1; then
+            mkdir -p "$RUNNER_TEMP/pybin"
+            ln -sf "$(command -v python3)" "$RUNNER_TEMP/pybin/python"
+            echo "$RUNNER_TEMP/pybin" >> "$GITHUB_PATH"
+          fi
+      - id: action
+        uses: .
+        with:
+          script: |
+            import sys
+            print("hello from python")
+            print("to stderr", file=sys.stderr)
+      - name: Assert outputs
+        env:
+          STDOUT: ${{ steps.action.outputs.stdout }}
+          STDERR: ${{ steps.action.outputs.stderr }}
+          ERR: ${{ steps.action.outputs.error }}
+        run: |
+          echo "stdout: $STDOUT"
+          echo "stderr: $STDERR"
+          echo "error: $ERR"
+          if ! echo "$STDOUT" | grep -q "hello from python"; then
+            echo "FAIL: stdout missing expected text"; exit 1
+          fi
+          if ! echo "$STDERR" | grep -q "to stderr"; then
+            echo "FAIL: stderr missing expected text"; exit 1
+          fi
+          if [ "$ERR" != "false" ]; then
+            echo "FAIL: expected error=false"; exit 1
+          fi
+          echo "PASS"

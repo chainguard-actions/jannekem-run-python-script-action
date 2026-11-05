@@ -1,0 +1,44 @@
+name: Test utility functions
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Ensure python is on PATH
+        run: |
+          if ! command -v python >/dev/null 2>&1; then
+            mkdir -p "$RUNNER_TEMP/pybin"
+            ln -sf "$(command -v python3)" "$RUNNER_TEMP/pybin/python"
+            echo "$RUNNER_TEMP/pybin" >> "$GITHUB_PATH"
+          fi
+      - id: action
+        uses: .
+        with:
+          script: |
+            set_output("custom", "value-123")
+            set_env("MY_TEST_VAR", "env-456")
+            print("script-input-present:", get_input("script") is not None)
+      - name: Assert util outputs
+        env:
+          CUSTOM: ${{ steps.action.outputs.custom }}
+          STDOUT: ${{ steps.action.outputs.stdout }}
+          ERR: ${{ steps.action.outputs.error }}
+        run: |
+          echo "custom: $CUSTOM"
+          echo "MY_TEST_VAR: $MY_TEST_VAR"
+          echo "stdout: $STDOUT"
+          if [ "$CUSTOM" != "value-123" ]; then
+            echo "FAIL: expected custom output value-123"; exit 1
+          fi
+          if [ "$MY_TEST_VAR" != "env-456" ]; then
+            echo "FAIL: expected env var env-456"; exit 1
+          fi
+          if ! echo "$STDOUT" | grep -q "script-input-present: True"; then
+            echo "FAIL: get_input did not return script"; exit 1
+          fi
+          if [ "$ERR" != "false" ]; then
+            echo "FAIL: expected error=false"; exit 1
+          fi
+          echo "PASS"

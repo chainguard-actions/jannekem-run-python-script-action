@@ -1,0 +1,35 @@
+name: Test error fails step by default
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Ensure python is on PATH
+        run: |
+          if ! command -v python >/dev/null 2>&1; then
+            mkdir -p "$RUNNER_TEMP/pybin"
+            ln -sf "$(command -v python3)" "$RUNNER_TEMP/pybin/python"
+            echo "$RUNNER_TEMP/pybin" >> "$GITHUB_PATH"
+          fi
+      - id: action
+        uses: .
+        continue-on-error: true
+        with:
+          script: |
+            import sys
+            sys.exit(3)
+      - name: Assert step failed
+        env:
+          ERR: ${{ steps.action.outputs.error }}
+          OUTCOME: ${{ steps.action.outcome }}
+        run: |
+          echo "error: $ERR"; echo "outcome: $OUTCOME"
+          if [ "$OUTCOME" != "failure" ]; then
+            echo "FAIL: expected step failure"; exit 1
+          fi
+          if [ "$ERR" != "true" ]; then
+            echo "FAIL: expected error=true"; exit 1
+          fi
+          echo "PASS"
