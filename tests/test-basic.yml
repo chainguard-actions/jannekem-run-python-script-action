@@ -1,0 +1,56 @@
+name: Test basic usage
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Ensure a `python` executable is on PATH
+        run: |
+          if ! command -v python3 >/dev/null 2>&1; then
+            SUDO=""; command -v sudo >/dev/null 2>&1 && SUDO="sudo"
+            $SUDO apt-get update && $SUDO apt-get install -y python3
+          fi
+          if ! command -v python >/dev/null 2>&1; then
+            mkdir -p "$HOME/pybin"
+            ln -sf "$(command -v python3)" "$HOME/pybin/python"
+            echo "$HOME/pybin" >> "$GITHUB_PATH"
+          fi
+      - id: action
+        uses: .
+        with:
+          script: |
+            import sys
+            print("hello from python")
+            print(2 + 3)
+      - name: Assert stdout
+        env:
+          ACTUAL: ${{ steps.action.outputs.stdout }}
+        run: |
+          echo "actual: $ACTUAL"
+          if ! echo "$ACTUAL" | grep -qx "hello from python"; then
+            echo "FAIL: expected 'hello from python' in stdout"
+            exit 1
+          fi
+          if ! echo "$ACTUAL" | grep -qx "5"; then
+            echo "FAIL: expected '5' in stdout"
+            exit 1
+          fi
+          echo "PASS"
+      - name: Assert error is false and stderr empty
+        env:
+          ERR: ${{ steps.action.outputs.error }}
+          STDERR: ${{ steps.action.outputs.stderr }}
+        run: |
+          echo "error: $ERR"
+          echo "stderr: $STDERR"
+          if [ "$ERR" != "false" ]; then
+            echo "FAIL: expected error=false"
+            exit 1
+          fi
+          if [ -n "$(echo "$STDERR" | tr -d '[:space:]')" ]; then
+            echo "FAIL: expected empty stderr"
+            exit 1
+          fi
+          echo "PASS"

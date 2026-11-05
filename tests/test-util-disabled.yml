@@ -1,0 +1,49 @@
+name: Test util disabled
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Ensure a `python` executable is on PATH
+        run: |
+          if ! command -v python3 >/dev/null 2>&1; then
+            SUDO=""; command -v sudo >/dev/null 2>&1 && SUDO="sudo"
+            $SUDO apt-get update && $SUDO apt-get install -y python3
+          fi
+          if ! command -v python >/dev/null 2>&1; then
+            mkdir -p "$HOME/pybin"
+            ln -sf "$(command -v python3)" "$HOME/pybin/python"
+            echo "$HOME/pybin" >> "$GITHUB_PATH"
+          fi
+      - id: action
+        uses: .
+        with:
+          util: false
+          fail-on-error: false
+          script: |
+            print("defined:", "set_output" in globals())
+            set_output("x", "y")
+      - name: Assert utilities not available
+        env:
+          ERR: ${{ steps.action.outputs.error }}
+          STDOUT: ${{ steps.action.outputs.stdout }}
+          STDERR: ${{ steps.action.outputs.stderr }}
+        run: |
+          echo "error: $ERR"
+          echo "stdout: $STDOUT"
+          echo "stderr: $STDERR"
+          if ! echo "$STDOUT" | grep -q "defined: False"; then
+            echo "FAIL: set_output should not be defined when util=false"
+            exit 1
+          fi
+          if [ "$ERR" != "true" ]; then
+            echo "FAIL: expected error=true"
+            exit 1
+          fi
+          if ! echo "$STDERR" | grep -q "NameError"; then
+            echo "FAIL: expected NameError in stderr"
+            exit 1
+          fi
+          echo "PASS"

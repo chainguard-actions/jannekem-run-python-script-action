@@ -1,0 +1,66 @@
+name: Test utility functions
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Ensure a `python` executable is on PATH
+        run: |
+          if ! command -v python3 >/dev/null 2>&1; then
+            SUDO=""; command -v sudo >/dev/null 2>&1 && SUDO="sudo"
+            $SUDO apt-get update && $SUDO apt-get install -y python3
+          fi
+          if ! command -v python >/dev/null 2>&1; then
+            mkdir -p "$HOME/pybin"
+            ln -sf "$(command -v python3)" "$HOME/pybin/python"
+            echo "$HOME/pybin" >> "$GITHUB_PATH"
+          fi
+      - id: action
+        uses: .
+        with:
+          script: |
+            set_output("greeting", "hi-there")
+            set_env("MY_TEST_VAR", "WORLD")
+            add_path("/opt/my-test-path")
+            print("input-script-present:", get_input("script") is not None)
+      - name: Assert set_output
+        env:
+          ACTUAL: ${{ steps.action.outputs.greeting }}
+          ERR: ${{ steps.action.outputs.error }}
+        run: |
+          echo "greeting: $ACTUAL"
+          echo "error: $ERR"
+          if [ "$ACTUAL" != "hi-there" ]; then
+            echo "FAIL: expected greeting=hi-there"
+            exit 1
+          fi
+          if [ "$ERR" != "false" ]; then
+            echo "FAIL: expected error=false"
+            exit 1
+          fi
+          echo "PASS"
+      - name: Assert set_env and add_path
+        run: |
+          echo "MY_TEST_VAR=$MY_TEST_VAR"
+          echo "PATH=$PATH"
+          if [ "$MY_TEST_VAR" != "WORLD" ]; then
+            echo "FAIL: expected MY_TEST_VAR=WORLD"
+            exit 1
+          fi
+          case ":$PATH:" in
+            *:/opt/my-test-path:*) ;;
+            *) echo "FAIL: /opt/my-test-path not in PATH"; exit 1 ;;
+          esac
+          echo "PASS"
+      - name: Assert get_input works
+        env:
+          STDOUT: ${{ steps.action.outputs.stdout }}
+        run: |
+          echo "stdout: $STDOUT"
+          if ! echo "$STDOUT" | grep -q "input-script-present: True"; then
+            echo "FAIL: get_input('script') did not return a value"
+            exit 1
+          fi
+          echo "PASS"

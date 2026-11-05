@@ -1,0 +1,55 @@
+name: Test fail-on-error false captures error
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Ensure a `python` executable is on PATH
+        run: |
+          if ! command -v python3 >/dev/null 2>&1; then
+            SUDO=""; command -v sudo >/dev/null 2>&1 && SUDO="sudo"
+            $SUDO apt-get update && $SUDO apt-get install -y python3
+          fi
+          if ! command -v python >/dev/null 2>&1; then
+            mkdir -p "$HOME/pybin"
+            ln -sf "$(command -v python3)" "$HOME/pybin/python"
+            echo "$HOME/pybin" >> "$GITHUB_PATH"
+          fi
+      - id: action
+        uses: .
+        with:
+          fail-on-error: false
+          script: |
+            print("Doing something that will fail")
+            a = []
+            a[10]
+      - name: Assert outputs
+        env:
+          OUTCOME: ${{ steps.action.outcome }}
+          ERR: ${{ steps.action.outputs.error }}
+          STDOUT: ${{ steps.action.outputs.stdout }}
+          STDERR: ${{ steps.action.outputs.stderr }}
+        run: |
+          echo "outcome: $OUTCOME"
+          echo "error: $ERR"
+          echo "stdout: $STDOUT"
+          echo "stderr: $STDERR"
+          if [ "$OUTCOME" != "success" ]; then
+            echo "FAIL: step should succeed with fail-on-error=false"
+            exit 1
+          fi
+          if [ "$ERR" != "true" ]; then
+            echo "FAIL: expected error=true"
+            exit 1
+          fi
+          if ! echo "$STDOUT" | grep -q "Doing something that will fail"; then
+            echo "FAIL: stdout missing expected text"
+            exit 1
+          fi
+          if ! echo "$STDERR" | grep -q "IndexError"; then
+            echo "FAIL: stderr missing IndexError"
+            exit 1
+          fi
+          echo "PASS"
