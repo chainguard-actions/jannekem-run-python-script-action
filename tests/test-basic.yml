@@ -1,0 +1,40 @@
+name: Test basic usage
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Ensure a 'python' executable is on PATH
+        run: |
+          if ! command -v python >/dev/null 2>&1; then
+            mkdir -p "$HOME/pybin"
+            ln -sf "$(command -v python3)" "$HOME/pybin/python"
+            echo "$HOME/pybin" >> "$GITHUB_PATH"
+          fi
+      - id: action
+        uses: .
+        with:
+          script: |
+            print("hello from python")
+            print(2 + 3)
+      - name: Assert outputs
+        env:
+          STDOUT: ${{ steps.action.outputs.stdout }}
+          STDERR: ${{ steps.action.outputs.stderr }}
+          ERR: ${{ steps.action.outputs.error }}
+        run: |
+          echo "stdout: $STDOUT"
+          echo "stderr: $STDERR"
+          echo "error: $ERR"
+          if ! echo "$STDOUT" | grep -q "hello from python"; then
+            echo "FAIL: stdout missing greeting"; exit 1
+          fi
+          if ! echo "$STDOUT" | grep -qx "5"; then
+            echo "FAIL: stdout missing computed 5"; exit 1
+          fi
+          if [ "$ERR" != "false" ]; then
+            echo "FAIL: expected error=false"; exit 1
+          fi
+          echo "PASS"

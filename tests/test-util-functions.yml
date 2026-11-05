@@ -1,0 +1,53 @@
+name: Test utility functions
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Ensure a 'python' executable is on PATH
+        run: |
+          if ! command -v python >/dev/null 2>&1; then
+            mkdir -p "$HOME/pybin"
+            ln -sf "$(command -v python3)" "$HOME/pybin/python"
+            echo "$HOME/pybin" >> "$GITHUB_PATH"
+          fi
+      - id: action
+        uses: .
+        with:
+          script: |
+            set_output("greeting", "hi-there")
+            set_env("MY_TEST_VAR", "WORLD")
+            add_path("/opt/my-test-path")
+            print("input util=" + str(get_input("util")))
+            group("Messages")
+            print("inside group")
+            end_group()
+      - name: Assert util effects
+        env:
+          GREETING: ${{ steps.action.outputs.greeting }}
+          STDOUT: ${{ steps.action.outputs.stdout }}
+          ERR: ${{ steps.action.outputs.error }}
+        run: |
+          echo "greeting: $GREETING"
+          echo "MY_TEST_VAR: $MY_TEST_VAR"
+          echo "PATH: $PATH"
+          echo "stdout: $STDOUT"
+          if [ "$GREETING" != "hi-there" ]; then
+            echo "FAIL: set_output did not work"; exit 1
+          fi
+          if [ "$MY_TEST_VAR" != "WORLD" ]; then
+            echo "FAIL: set_env did not work"; exit 1
+          fi
+          case ":$PATH:" in
+            *":/opt/my-test-path:"*) ;;
+            *) echo "FAIL: add_path did not work"; exit 1 ;;
+          esac
+          if ! echo "$STDOUT" | grep -q "input util=true"; then
+            echo "FAIL: get_input did not return util=true"; exit 1
+          fi
+          if [ "$ERR" != "false" ]; then
+            echo "FAIL: expected error=false"; exit 1
+          fi
+          echo "PASS"
